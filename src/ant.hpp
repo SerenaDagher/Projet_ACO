@@ -36,4 +36,36 @@ private:
     position_t m_position;
 };
 
+// ============================================================
+// VERSION VECTORISÉE : Structure of Arrays (SoA)
+// ============================================================
+
+/**
+ * @brief Représentation vectorisée d'une colonie de fourmis (Structure of Arrays)
+ * @details Au lieu d'un tableau d'objets ant (Array of Structures),
+ *          on utilise des tableaux séparés pour chaque champ.
+ *          Cela améliore la localité mémoire et prépare la parallélisation OpenMP.
+ */
+struct AntColony {
+    std::vector<int>         x;       ///< Coordonnée x de chaque fourmi
+    std::vector<int>         y;       ///< Coordonnée y de chaque fourmi
+    std::vector<int>         states;  ///< État de chaque fourmi : 0 = non chargée, 1 = chargée
+    std::vector<std::size_t> seeds;   ///< Graine aléatoire de chaque fourmi
+
+    std::size_t size() const { return x.size(); }
+
+    static double m_eps; ///< Coefficient d'exploration commun à toutes les fourmis
+    static void set_exploration_coef(double eps) { m_eps = eps; }
+};
+
+/**
+ * @brief Fait avancer la fourmi d'indice idx dans la colonie vectorisée
+ * @details Logique identique à ant::advance(), mais opère sur les tableaux SoA
+ *          via l'indice idx. Prête pour une parallélisation OpenMP sur la boucle appelante.
+ */
+void advance_ant( std::size_t idx, AntColony& colony,
+                  pheronome& phen, const fractal_land& land,
+                  const position_t& pos_food, const position_t& pos_nest,
+                  std::size_t& cpteur_food );
+
 #endif

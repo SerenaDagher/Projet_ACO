@@ -11,7 +11,7 @@ CXXFLAGS2 = ${CXXFLAGS} -O2 -march=native -Wall
 CXXFLAGS += -O3 -march=native -Wall
 endif
 
-ALL= ant_simu.exe 
+ALL= ant_simu.exe ant_simu_vec.exe
 
 default:	help
 
@@ -26,9 +26,14 @@ clean:
 ant_simu.exe : ant.o fractal_land.o renderer.o window.o ant_simu.o
 	$(CXX) $(CXXFLAGS2) $^ -o $@ $(LIB)	
 
+ant_simu_vec.exe : ant.o fractal_land.o renderer.o window.o ant_simu_vec.o
+	$(CXX) $(CXXFLAGS2) $^ -o $@ $(LIB)
+
 help:
 	@echo "Available targets : "
-	@echo "    all            : compile all executables"
+	@echo "    all                : compile all executables"
+	@echo "    ant_simu.exe       : version originale (AoS)"
+	@echo "    ant_simu_vec.exe   : version vectorisee (SoA)"
 	@echo "Add DEBUG=yes to compile in debug"
 	@echo "Configuration :"
 	@echo "    CXX      :    $(CXX)"
