@@ -3,7 +3,6 @@
 #include "rand_generator.hpp"
 
 double ant::m_eps = 0.;
-double AntColony::m_eps = 0.;
 
 void ant::advance( pheronome& phen, const fractal_land& land, const position_t& pos_food, const position_t& pos_nest,
                    std::size_t& cpteur_food ) 
@@ -54,91 +53,6 @@ void ant::advance( pheronome& phen, const fractal_land& land, const position_t& 
         }
         if ( get_position( ) == pos_food ) {
             set_loaded( );
-        }
-    }
-}
-
-
-// ============================================================
-// VERSION VECTORISÉE : advance_ant sur AntColony (SoA)
-// ============================================================
-
-/**
- * @brief Avance la fourmi d'indice idx dans la colonie vectorisée.
- * @details Logique strictement identique à ant::advance().
- *          Les accès aux champs de la fourmi se font via les tableaux
- *          colony.x[idx], colony.y[idx], colony.states[idx], colony.seeds[idx]
- *          au lieu des membres d'un objet ant.
- *
- *          Cette fonction est conçue pour être appelée dans une boucle
- *          parallélisable avec OpenMP :
- *            #pragma omp parallel for reduction(+:cpteur_food)
- *            for (size_t i = 0; i < colony.size(); ++i)
- *                advance_ant(i, colony, phen, land, pos_food, pos_nest, cpteur_food);
- */
-void advance_ant( std::size_t idx, AntColony& colony,
-                  pheronome& phen, const fractal_land& land,
-                  const position_t& pos_food, const position_t& pos_nest,
-                  std::size_t& cpteur_food )
-{
-    // Accès aux données de la fourmi via les tableaux SoA
-    auto ant_choice = [&]() mutable { return rand_double( 0., 1., colony.seeds[idx] ); };
-    auto dir_choice = [&]() mutable { return rand_int32( 1, 4, colony.seeds[idx] ); };
-
-    double consumed_time = 0.;
-
-    // Tant que la fourmi peut encore bouger dans le pas de temps imparti
-    while ( consumed_time < 1. ) {
-        // Si la fourmi est chargée (state==1), elle suit V2, sinon V1
-        int        ind_pher    = colony.states[idx];  // 0 ou 1
-        double     choix       = ant_choice();
-        position_t old_pos_ant = { colony.x[idx], colony.y[idx] };
-        position_t new_pos_ant = old_pos_ant;
-
-        double max_phen = std::max( { phen( new_pos_ant.x - 1, new_pos_ant.y )[ind_pher],
-                                      phen( new_pos_ant.x + 1, new_pos_ant.y )[ind_pher],
-                                      phen( new_pos_ant.x, new_pos_ant.y - 1 )[ind_pher],
-                                      phen( new_pos_ant.x, new_pos_ant.y + 1 )[ind_pher] } );
-
-        if ( ( choix > AntColony::m_eps ) || ( max_phen <= 0. ) ) {
-            // Exploration aléatoire
-            do {
-                new_pos_ant = old_pos_ant;
-                int d = dir_choice();
-                if ( d == 1 ) new_pos_ant.x -= 1;
-                if ( d == 2 ) new_pos_ant.y -= 1;
-                if ( d == 3 ) new_pos_ant.x += 1;
-                if ( d == 4 ) new_pos_ant.y += 1;
-            } while ( phen[new_pos_ant][ind_pher] == -1 );
-        } else {
-            // On choisit la case où le phéromone est le plus fort
-            if ( phen( new_pos_ant.x - 1, new_pos_ant.y )[ind_pher] == max_phen )
-                new_pos_ant.x -= 1;
-            else if ( phen( new_pos_ant.x + 1, new_pos_ant.y )[ind_pher] == max_phen )
-                new_pos_ant.x += 1;
-            else if ( phen( new_pos_ant.x, new_pos_ant.y - 1 )[ind_pher] == max_phen )
-                new_pos_ant.y -= 1;
-            else
-                new_pos_ant.y += 1;
-        }
-
-        consumed_time += land( new_pos_ant.x, new_pos_ant.y );
-        phen.mark_pheronome( new_pos_ant );
-
-        // Mise à jour de la position dans les tableaux SoA
-        colony.x[idx] = new_pos_ant.x;
-        colony.y[idx] = new_pos_ant.y;
-
-        // Arrivée au nid
-        if ( new_pos_ant == pos_nest ) {
-            if ( colony.states[idx] == 1 ) {
-                cpteur_food += 1;
-            }
-            colony.states[idx] = 0; // unloaded
-        }
-        // Arrivée à la nourriture
-        if ( new_pos_ant == pos_food ) {
-            colony.states[idx] = 1; // loaded
         }
     }
 }
