@@ -1,39 +1,80 @@
-// ant.hpp
-#ifndef _ANT_HPP_
-# define _ANT_HPP_
-# include <utility>
-# include "pheronome.hpp"
-# include "fractal_land.hpp"
-# include "basic_types.hpp"
+#pragma once
+
+#include <vector>
+#include <cstddef>
+#include "basic_types.hpp"
+#include "fractal_land.hpp"
+#include "pheronome.hpp"
 
 class ant
 {
 public:
-    /**
-     * Une fourmi peut être dans deux états possibles : chargée ( elle porte de la nourriture ) ou non chargée
-     */
-    enum state { unloaded = 0, loaded = 1 };
-    ant(const position_t& pos, std::size_t seed ) : m_state(unloaded), m_position(pos)
-    {} 
-    ant(const ant& a) = default;
-    ant( ant&& a ) = default;
-    ~ant() = default;
+    ant(position_t pos = {0,0}, std::size_t seed = 0)
+        : m_position(pos), m_seed(seed), m_loaded(false) {}
 
-    void set_loaded() { m_state = loaded; }
-    void unset_loaded() { m_state = unloaded; }
+    inline position_t get_position() const { return m_position; }
+    inline bool is_loaded() const { return m_loaded; }
+    inline void set_loaded() { m_loaded = true; }
+    inline void unset_loaded() { m_loaded = false; }
 
-    bool is_loaded() const { return m_state == loaded; }
-    const position_t& get_position() const { return m_position; }
-    static void set_exploration_coef(double eps) { m_eps = eps; }
+    static inline void set_exploration_coef(double eps) { m_eps = eps; }
 
-    void advance( pheronome& phen, const fractal_land& land,
-                  const position_t& pos_food, const position_t& pos_nest, std::size_t& cpteur_food );
+    void advance(pheronome& phen,
+                 const fractal_land& land,
+                 const position_t& pos_food,
+                 const position_t& pos_nest,
+                 std::size_t& cpteur_food);
 
 private:
-    static double m_eps; // Coefficient d'exploration commun à toutes les fourmis.
-    std::size_t m_seed;
-    state m_state;
-    position_t m_position;
+    position_t   m_position;
+    std::size_t  m_seed;
+    bool         m_loaded;
+
+    static double m_eps;
 };
 
-#endif
+// ============================================================
+// Représentation vectorisée des fourmis (Structure of Arrays)
+// ============================================================
+
+struct AntColony
+{
+    std::vector<int> x;
+    std::vector<int> y;
+    std::vector<int> states;        // 0 = non chargée, 1 = chargée
+    std::vector<std::size_t> seeds; // graine aléatoire par fourmi
+
+    static double m_eps;
+
+    inline std::size_t size() const { return x.size(); }
+
+    inline void reserve(std::size_t n)
+    {
+        x.reserve(n);
+        y.reserve(n);
+        states.reserve(n);
+        seeds.reserve(n);
+    }
+
+    inline void push_back(position_t pos, std::size_t seed, int state = 0)
+    {
+        x.push_back(pos.x);
+        y.push_back(pos.y);
+        states.push_back(state);
+        seeds.push_back(seed);
+    }
+
+    static inline void set_exploration_coef(double eps)
+    {
+        m_eps = eps;
+    }
+};
+
+// Avance une seule fourmi vectorisée d’indice idx
+void advance_ant(std::size_t idx,
+                 AntColony& colony,
+                 pheronome& phen,
+                 const fractal_land& land,
+                 const position_t& pos_food,
+                 const position_t& pos_nest,
+                 std::size_t& cpteur_food);

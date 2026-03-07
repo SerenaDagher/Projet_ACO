@@ -1,103 +1,45 @@
 #include <vector>
 #include <iostream>
+#include <random>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
+#include <cmath>
+
 #include "fractal_land.hpp"
+#include "ant.hpp"
 #include "pheronome.hpp"
-#include "renderer.hpp"
-#include "window.hpp"
 #include "rand_generator.hpp"
-#include "basic_types.hpp"
 
-// ============================================================
-//  Version vectorisée : Structure of Arrays (SoA)
-//  Au lieu d'un vector<ant>, on utilise trois tableaux séparés :
-//    - positions : coordonnées (x,y) de chaque fourmi
-//    - states    : état chargé/non-chargé (0 ou 1)
-//    - seeds     : graine aléatoire propre à chaque fourmi
-// ============================================================
-
-static double g_eps = 0.8;
-
-// Avance toutes les fourmis d'un pas de temps (version SoA)
-void advance_ants_soa(
-    const fractal_land&       land,
-    pheronome&                phen,
-    const position_t&         pos_nest,
-    const position_t&         pos_food,
-    std::vector<position_t>&  positions,
-    std::vector<int>&         states,
-    std::vector<std::size_t>& seeds,
-    std::size_t&              cpteur_food )
+struct TimingStats
 {
-    const std::size_t nb_ants = positions.size();
+    double sum_ants   = 0.0;
+    double sum_evap   = 0.0;
+    double sum_update = 0.0;
 
-    for ( std::size_t k = 0; k < nb_ants; ++k )
-    {
-        double consumed_time = 0.;
+    double sum2_ants   = 0.0;
+    double sum2_evap   = 0.0;
+    double sum2_update = 0.0;
 
-        while ( consumed_time < 1. )
-        {
-            int        ind_pher = states[k];
-            double     choix    = rand_double( 0., 1., seeds[k] );
-            position_t old_pos  = positions[k];
-            position_t new_pos  = old_pos;
+    std::size_t count = 0;
+};
 
-            double max_phen = std::max( { phen( new_pos.x-1, new_pos.y )[ind_pher],
-                                          phen( new_pos.x+1, new_pos.y )[ind_pher],
-                                          phen( new_pos.x,   new_pos.y-1 )[ind_pher],
-                                          phen( new_pos.x,   new_pos.y+1 )[ind_pher] } );
-
-            if ( ( choix > g_eps ) || ( max_phen <= 0. ) )
-            {
-                do {
-                    new_pos = old_pos;
-                    int d = rand_int32( 1, 4, seeds[k] );
-                    if ( d == 1 ) new_pos.x -= 1;
-                    if ( d == 2 ) new_pos.y -= 1;
-                    if ( d == 3 ) new_pos.x += 1;
-                    if ( d == 4 ) new_pos.y += 1;
-                } while ( phen[new_pos][ind_pher] == -1 );
-            }
-            else
-            {
-                if      ( phen( new_pos.x-1, new_pos.y )[ind_pher] == max_phen ) new_pos.x -= 1;
-                else if ( phen( new_pos.x+1, new_pos.y )[ind_pher] == max_phen ) new_pos.x += 1;
-                else if ( phen( new_pos.x,   new_pos.y-1 )[ind_pher] == max_phen ) new_pos.y -= 1;
-                else                                                                new_pos.y += 1;
-            }
-
-            consumed_time += land( new_pos.x, new_pos.y );
-            phen.mark_pheronome( new_pos );
-            positions[k] = new_pos;
-
-            if ( new_pos.x == pos_nest.x && new_pos.y == pos_nest.y ) {
-                if ( states[k] == 1 ) cpteur_food += 1;
-                states[k] = 0;
-            }
-            if ( new_pos.x == pos_food.x && new_pos.y == pos_food.y ) {
-                states[k] = 1;
-            }
-        }
-    }
-}
-
-void advance_time(
-    const fractal_land&       land,
-    pheronome&                phen,
-    const position_t&         pos_nest,
-    const position_t&         pos_food,
-    std::vector<position_t>&  positions,
-    std::vector<int>&         states,
-    std::vector<std::size_t>& seeds,
-    std::size_t&              cpteur,
-    double& t_ants, double& t_evap, double& t_update )
+void advance_time_vectorized(const fractal_land& land,
+                             pheronome& phen,
+                             const position_t& pos_nest,
+                             const position_t& pos_food,
+                             AntColony& ants,
+                             std::size_t& cpteur,
+                             double& t_ants,
+                             double& t_evap,
+                             double& t_update)
 {
     using clock = std::chrono::high_resolution_clock;
 
     auto t1 = clock::now();
-    advance_ants_soa( land, phen, pos_nest, pos_food, positions, states, seeds, cpteur );
+    for (std::size_t i = 0; i < ants.size(); ++i) {
+        advance_ant(i, ants, phen, land, pos_food, pos_nest, cpteur);
+    }
     auto t2 = clock::now();
 
     phen.do_evaporation();
@@ -113,102 +55,135 @@ void advance_time(
 
 int main(int nargs, char* argv[])
 {
-    SDL_Init( SDL_INIT_VIDEO );
-    std::size_t seed    = 2026;
-    const int   nb_ants = 5000;
-    const double eps    = 0.8;
-    const double alpha  = 0.7;
-    const double beta   = 0.999;
+    std::size_t seed = 2026;
+    const int nb_ants = 5000;
+    const int max_iter = 5000;
+    const double eps = 0.8;
+    const double alpha = 0.7;
+    const double beta = 0.999;
 
-    g_eps = eps;
-
-    position_t pos_nest{256, 256};
-    position_t pos_food{500, 500};
+    position_t pos_nest{256,256};
+    position_t pos_food{500,500};
 
     fractal_land land(8, 2, 1., 1024);
 
-    double max_val = 0.0, min_val = 0.0;
-    for ( fractal_land::dim_t i = 0; i < land.dimensions(); ++i )
-        for ( fractal_land::dim_t j = 0; j < land.dimensions(); ++j ) {
+    double max_val = 0.0;
+    double min_val = 0.0;
+    for (fractal_land::dim_t i = 0; i < land.dimensions(); ++i) {
+        for (fractal_land::dim_t j = 0; j < land.dimensions(); ++j) {
             max_val = std::max(max_val, land(i,j));
             min_val = std::min(min_val, land(i,j));
         }
+    }
+
     double delta = max_val - min_val;
-    for ( fractal_land::dim_t i = 0; i < land.dimensions(); ++i )
-        for ( fractal_land::dim_t j = 0; j < land.dimensions(); ++j )
+    for (fractal_land::dim_t i = 0; i < land.dimensions(); ++i) {
+        for (fractal_land::dim_t j = 0; j < land.dimensions(); ++j) {
             land(i,j) = (land(i,j) - min_val) / delta;
+        }
+    }
 
-    // --------------------------------------------------------
-    //  Initialisation SoA : trois tableaux séparés
-    // --------------------------------------------------------
-    std::vector<position_t>  positions(nb_ants);
-    std::vector<int>         states(nb_ants, 0);   // toutes non chargées
-    std::vector<std::size_t> seeds(nb_ants);
+    AntColony ants;
+    ants.reserve(nb_ants);
+    AntColony::set_exploration_coef(eps);
 
-    for ( int i = 0; i < nb_ants; ++i ) {
-        std::size_t local_seed = seed + i;
-        positions[i].x = rand_int32(0, land.dimensions()-1, local_seed);
-        positions[i].y = rand_int32(0, land.dimensions()-1, local_seed);
-        seeds[i]       = local_seed;
+    auto gen_ant_pos = [&land, &seed]() {
+        return rand_int32(0, land.dimensions() - 1, seed);
+    };
+
+    for (std::size_t i = 0; i < nb_ants; ++i) {
+        ants.push_back(position_t{gen_ant_pos(), gen_ant_pos()}, seed, 0);
     }
 
     pheronome phen(land.dimensions(), pos_food, pos_nest, alpha, beta);
 
-    Window   win("Ant Simulation (vectorized)", 2*land.dimensions()+10, land.dimensions()+266);
-    Renderer renderer( land, phen, pos_nest, pos_food, positions, states );
+    std::size_t food_quantity = 0;
+    bool not_food_in_nest = true;
 
-    std::size_t food_quantity    = 0;
-    SDL_Event   event;
-    bool        cont_loop        = true;
-    bool        not_food_in_nest = true;
-    std::size_t it               = 0;
+    std::ofstream csv("stats_fourmis.csv");
+    csv << "iteration,temps_fourmis_ms,temps_evap_ms,temps_update_ms,food_quantity\n";
 
-    std::ofstream stats_file("stats_fourmis_vectorized.csv");
-    stats_file << "iteration,temps_total_ms,temps_fourmis_ms,temps_evap_ms,"
-                  "temps_update_ms,temps_render_ms,food_quantity\n";
+    TimingStats stats;
 
-    using clock = std::chrono::high_resolution_clock;
-    const int MAX_ITER = 5000;
+    for (std::size_t it = 1; it <= (std::size_t)max_iter; ++it) {
+        double t_ants = 0.0;
+        double t_evap = 0.0;
+        double t_update = 0.0;
 
-    while ( cont_loop && it < MAX_ITER ) {
-        ++it;
-        auto iter_start = clock::now();
+        advance_time_vectorized(land, phen, pos_nest, pos_food,
+                                ants, food_quantity,
+                                t_ants, t_evap, t_update);
 
-        while ( SDL_PollEvent(&event) )
-            if ( event.type == SDL_QUIT ) cont_loop = false;
+        csv << it << ","
+            << std::fixed << std::setprecision(6)
+            << t_ants << ","
+            << t_evap << ","
+            << t_update << ","
+            << food_quantity << "\n";
 
-        double t_ants = 0., t_evap = 0., t_update = 0.;
+        stats.sum_ants   += t_ants;
+        stats.sum_evap   += t_evap;
+        stats.sum_update += t_update;
 
-        advance_time( land, phen, pos_nest, pos_food,
-                      positions, states, seeds,
-                      food_quantity, t_ants, t_evap, t_update );
+        stats.sum2_ants   += t_ants * t_ants;
+        stats.sum2_evap   += t_evap * t_evap;
+        stats.sum2_update += t_update * t_update;
 
-        auto render_start = clock::now();
-        renderer.display( win, food_quantity );
-        win.blit();
-        auto render_end = clock::now();
+        stats.count++;
 
-        auto iter_end = clock::now();
-
-        double t_render = std::chrono::duration<double, std::milli>(render_end - render_start).count();
-        double t_total  = std::chrono::duration<double, std::milli>(iter_end - iter_start).count();
-
-        stats_file << it << ","
-                   << std::fixed << std::setprecision(3)
-                   << t_total  << ","
-                   << t_ants   << ","
-                   << t_evap   << ","
-                   << t_update << ","
-                   << t_render << ","
-                   << food_quantity << "\n";
-
-        if ( not_food_in_nest && food_quantity > 0 ) {
-            std::cout << "La premiere nourriture est arrivee au nid a l'iteration " << it << std::endl;
+        if (not_food_in_nest && food_quantity > 0) {
+            std::cout << "La première nourriture est arrivée au nid à l'itération "
+                      << it << std::endl;
             not_food_in_nest = false;
         }
     }
 
-    stats_file.close();
-    SDL_Quit();
+    csv.close();
+
+    auto mean = [](double s, std::size_t n) {
+        return (n == 0) ? 0.0 : s / static_cast<double>(n);
+    };
+
+    auto stddev = [](double s, double s2, std::size_t n) {
+        if (n == 0) return 0.0;
+        double m = s / static_cast<double>(n);
+        return std::sqrt(s2 / static_cast<double>(n) - m * m);
+    };
+
+    double mean_ants   = mean(stats.sum_ants, stats.count);
+    double mean_evap   = mean(stats.sum_evap, stats.count);
+    double mean_update = mean(stats.sum_update, stats.count);
+
+    double std_ants   = stddev(stats.sum_ants, stats.sum2_ants, stats.count);
+    double std_evap   = stddev(stats.sum_evap, stats.sum2_evap, stats.count);
+    double std_update = stddev(stats.sum_update, stats.sum2_update, stats.count);
+
+    double total_all = stats.sum_ants + stats.sum_evap + stats.sum_update;
+
+    std::cout << "\n===== RÉSULTATS VERSION VECTORISÉE =====\n";
+    std::cout << "Nb itérations                : " << stats.count << "\n";
+    std::cout << "Quantité finale nourriture   : " << food_quantity << "\n\n";
+
+    std::cout << "--- temps_fourmis_ms ---\n";
+    std::cout << "Temps total    : " << stats.sum_ants << " ms\n";
+    std::cout << "Temps moyen    : " << mean_ants << " ms\n";
+    std::cout << "Écart-type     : " << std_ants << " ms\n";
+    std::cout << "Pourcentage    : " << (100.0 * stats.sum_ants / total_all) << " %\n\n";
+
+    std::cout << "--- temps_evap_ms ---\n";
+    std::cout << "Temps total    : " << stats.sum_evap << " ms\n";
+    std::cout << "Temps moyen    : " << mean_evap << " ms\n";
+    std::cout << "Écart-type     : " << std_evap << " ms\n";
+    std::cout << "Pourcentage    : " << (100.0 * stats.sum_evap / total_all) << " %\n\n";
+
+    std::cout << "--- temps_update_ms ---\n";
+    std::cout << "Temps total    : " << stats.sum_update << " ms\n";
+    std::cout << "Temps moyen    : " << mean_update << " ms\n";
+    std::cout << "Écart-type     : " << std_update << " ms\n";
+    std::cout << "Pourcentage    : " << (100.0 * stats.sum_update / total_all) << " %\n\n";
+
+    std::cout << "===== GLOBAL =====\n";
+    std::cout << "Temps total des colonnes analysées : " << total_all << " ms\n";
+
     return 0;
 }
