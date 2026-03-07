@@ -1,0 +1,143 @@
+#ifndef _PHERONOME_HPP_
+#define _PHERONOME_HPP_
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <iostream>
+#include <utility>
+#include <vector>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+#include "basic_types.hpp"
+
+class pheronome {
+public:
+    using size_t      = unsigned long;
+    using pheronome_t = std::array<double, 2>;
+
+    pheronome(size_t dim, const position_t& pos_food, const position_t& pos_nest,
+              double alpha = 0.7, double beta = 0.9999)
+        : m_dim(dim),
+          m_stride(dim + 2),
+          m_alpha(alpha),
+          m_beta(beta),
+          m_map_of_pheronome(m_stride * m_stride, {{0., 0.}}),
+          m_buffer_pheronome(),
+          m_pos_nest(pos_nest),
+          m_pos_food(pos_food)
+    {
+        m_map_of_pheronome[index(pos_food)][0] = 1.;
+        m_map_of_pheronome[index(pos_nest)][1] = 1.;
+        cl_update();
+        m_buffer_pheronome = m_map_of_pheronome;
+    }
+
+    pheronome(const pheronome&) = delete;
+    pheronome(pheronome&&) = delete;
+    ~pheronome() = default;
+
+    pheronome_t& operator()(size_t i, size_t j) {
+        return m_map_of_pheronome[(i + 1) * m_stride + (j + 1)];
+    }
+
+    const pheronome_t& operator()(size_t i, size_t j) const {
+        return m_map_of_pheronome[(i + 1) * m_stride + (j + 1)];
+    }
+
+    pheronome_t& operator[](const position_t& pos) {
+        return m_map_of_pheronome[index(pos)];
+    }
+
+    const pheronome_t& operator[](const position_t& pos) const {
+        return m_map_of_pheronome[index(pos)];
+    }
+
+    void mark_pheronome(const position_t& pos) {
+        std::size_t i = pos.x;
+        std::size_t j = pos.y;
+
+        assert(i < m_dim);
+        assert(j < m_dim);
+
+        const pheronome_t& left_cell   = (*this)(i - 1, j);
+        const pheronome_t& right_cell  = (*this)(i + 1, j);
+        const pheronome_t& upper_cell  = (*this)(i, j - 1);
+        const pheronome_t& bottom_cell = (*this)(i, j + 1);
+
+        double v1_left   = std::max(left_cell[0], 0.);
+        double v2_left   = std::max(left_cell[1], 0.);
+        double v1_right  = std::max(right_cell[0], 0.);
+        double v2_right  = std::max(right_cell[1], 0.);
+        double v1_upper  = std::max(upper_cell[0], 0.);
+        double v2_upper  = std::max(upper_cell[1], 0.);
+        double v1_bottom = std::max(bottom_cell[0], 0.);
+        double v2_bottom = std::max(bottom_cell[1], 0.);
+
+        m_buffer_pheronome[(i + 1) * m_stride + (j + 1)][0] =
+            m_alpha * std::max({v1_left, v1_right, v1_upper, v1_bottom}) +
+            (1 - m_alpha) * 0.25 * (v1_left + v1_right + v1_upper + v1_bottom);
+
+        m_buffer_pheronome[(i + 1) * m_stride + (j + 1)][1] =
+            m_alpha * std::max({v2_left, v2_right, v2_upper, v2_bottom}) +
+            (1 - m_alpha) * 0.25 * (v2_left + v2_right + v2_upper + v2_bottom);
+    }
+
+    void update() {
+        m_map_of_pheronome.swap(m_buffer_pheronome);
+        cl_update();
+        m_map_of_pheronome[(m_pos_food.x + 1) * m_stride + m_pos_food.y + 1][0] = 1.;
+        m_map_of_pheronome[(m_pos_nest.x + 1) * m_stride + m_pos_nest.y + 1][1] = 1.;
+    }
+
+    std::size_t dim() const { return m_dim; }
+    std::size_t stride() const { return m_stride; }
+
+    std::size_t raw_buffer_count() const {
+        return m_buffer_pheronome.size() * 2;
+    }
+
+    double* raw_buffer_data() {
+        return reinterpret_cast<double*>(m_buffer_pheronome.data());
+    }
+
+    const double* raw_buffer_data() const {
+        return reinterpret_cast<const double*>(m_buffer_pheronome.data());
+    }
+
+    void evaporate_rows_parallel(std::size_t row_begin, std::size_t row_end) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (long i = static_cast<long>(row_begin); i < static_cast<long>(row_end); ++i) {
+            for (std::size_t j = 1; j <= m_dim; ++j) {
+                m_buffer_pheronome[(static_cast<std::size_t>(i) + 1) * m_stride + j][0] *= m_beta;
+                m_buffer_pheronome[(static_cast<std::size_t>(i) + 1) * m_stride + j][1] *= m_beta;
+            }
+        }
+    }
+
+private:
+    size_t index(const position_t& pos) const {
+        return (pos.x + 1) * m_stride + pos.y + 1;
+    }
+
+    void cl_update() {
+        for (unsigned long j = 0; j < m_stride; ++j) {
+            m_map_of_pheronome[j] = {{-1., -1.}};
+            m_map_of_pheronome[j + m_stride * (m_dim + 1)] = {{-1., -1.}};
+            m_map_of_pheronome[j * m_stride] = {{-1., -1.}};
+            m_map_of_pheronome[j * m_stride + m_dim + 1] = {{-1., -1.}};
+        }
+    }
+
+    unsigned long m_dim, m_stride;
+    double m_alpha, m_beta;
+    std::vector<pheronome_t> m_map_of_pheronome, m_buffer_pheronome;
+    position_t m_pos_nest, m_pos_food;
+};
+
+#endif
