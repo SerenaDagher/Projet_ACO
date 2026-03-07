@@ -88,3 +88,5 @@ void advance_ant_collect(std::size_t idx,
                          std::vector<position_t>& visited_positions);
 
 #endif
+
+
