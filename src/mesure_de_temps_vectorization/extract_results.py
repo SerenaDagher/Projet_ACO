@@ -11,8 +11,8 @@ PREFERRED_TIME_COLUMNS = [
 
 def load_table():
     candidates = [
-        Path("stats_fourmis_vectorized.csv"),
-        Path("stats_fourmis_vectorized.xlsx"),
+        Path("stats_fourmis.csv"),
+        Path("stats_fourmis.xlsx"),
     ]
 
     for p in candidates:
