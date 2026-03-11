@@ -49,18 +49,6 @@ static int owner_of_row(int y_global, int nrows, int nprocs)
     return -1;
 }
 
-static double mean(double s, std::size_t n)
-{
-    return (n == 0) ? 0.0 : s / static_cast<double>(n);
-}
-
-static double stddev(double s, double s2, std::size_t n)
-{
-    if (n == 0) return 0.0;
-    double m = s / static_cast<double>(n);
-    return std::sqrt(s2 / static_cast<double>(n) - m * m);
-}
-
 static int global_to_local_y(int y_global, int y_begin)
 {
     return (y_global - y_begin) + 1;
@@ -194,9 +182,7 @@ int main(int argc, char* argv[])
     }
 
     for (int it = 1; it <= max_iter; ++it) {
-        // ========================================================
-        // 1) Échange des ghost rows
-        // ========================================================
+        
         auto tb1 = clock::now();
 
         int up   = (rank > 0) ? rank - 1 : MPI_PROC_NULL;
@@ -232,10 +218,7 @@ int main(int argc, char* argv[])
 
         auto tb2 = clock::now();
         double local_t_border = std::chrono::duration<double, std::milli>(tb2 - tb1).count();
-
-        // ========================================================
-        // 2) Déplacement local des fourmis + marquage local
-        // ========================================================
+        
         auto tm1 = clock::now();
 
         phen.copy_data_to_buffer();
@@ -338,10 +321,7 @@ int main(int argc, char* argv[])
 
         auto tm2 = clock::now();
         double local_t_move = std::chrono::duration<double, std::milli>(tm2 - tm1).count();
-
-        // ========================================================
-        // 3) Migration des fourmis
-        // ========================================================
+        
         auto tg1 = clock::now();
 
         std::vector<int> sendcounts(nprocs, 0), recvcounts(nprocs, 0);
@@ -449,55 +429,6 @@ int main(int argc, char* argv[])
 
     if (rank == 0) {
         csv.close();
-
-        double mean_border  = mean(stats.sum_border, stats.count);
-        double mean_move    = mean(stats.sum_move, stats.count);
-        double mean_migrate = mean(stats.sum_migrate, stats.count);
-        double mean_evap    = mean(stats.sum_evap, stats.count);
-
-        double std_border  = stddev(stats.sum_border, stats.sum2_border, stats.count);
-        double std_move    = stddev(stats.sum_move, stats.sum2_move, stats.count);
-        double std_migrate = stddev(stats.sum_migrate, stats.sum2_migrate, stats.count);
-        double std_evap    = stddev(stats.sum_evap, stats.sum2_evap, stats.count);
-
-        double total_all = stats.sum_border + stats.sum_move + stats.sum_migrate + stats.sum_evap;
-
-        if (first_food_iter_global > 0) {
-            std::cout << "La première nourriture est arrivée au nid à l'itération "
-                      << first_food_iter_global << "\n\n";
-        }
-
-        std::cout << "===== VERSION MPI DOMAINE LOCAL =====\n";
-        std::cout << "Processus                    : " << nprocs << "\n";
-        std::cout << "Nb itérations                : " << stats.count << "\n";
-        std::cout << "Quantité finale nourriture   : " << global_food_quantity << "\n\n";
-
-        std::cout << "--- temps_border_ms ---\n";
-        std::cout << "Temps total    : " << stats.sum_border << " ms\n";
-        std::cout << "Temps moyen    : " << mean_border << " ms\n";
-        std::cout << "Écart-type     : " << std_border << " ms\n";
-        std::cout << "Pourcentage    : " << (100.0 * stats.sum_border / total_all) << " %\n\n";
-
-        std::cout << "--- temps_move_ms ---\n";
-        std::cout << "Temps total    : " << stats.sum_move << " ms\n";
-        std::cout << "Temps moyen    : " << mean_move << " ms\n";
-        std::cout << "Écart-type     : " << std_move << " ms\n";
-        std::cout << "Pourcentage    : " << (100.0 * stats.sum_move / total_all) << " %\n\n";
-
-        std::cout << "--- temps_migrate_ms ---\n";
-        std::cout << "Temps total    : " << stats.sum_migrate << " ms\n";
-        std::cout << "Temps moyen    : " << mean_migrate << " ms\n";
-        std::cout << "Écart-type     : " << std_migrate << " ms\n";
-        std::cout << "Pourcentage    : " << (100.0 * stats.sum_migrate / total_all) << " %\n\n";
-
-        std::cout << "--- temps_evap_ms ---\n";
-        std::cout << "Temps total    : " << stats.sum_evap << " ms\n";
-        std::cout << "Temps moyen    : " << mean_evap << " ms\n";
-        std::cout << "Écart-type     : " << std_evap << " ms\n";
-        std::cout << "Pourcentage    : " << (100.0 * stats.sum_evap / total_all) << " %\n\n";
-
-        std::cout << "===== GLOBAL =====\n";
-        std::cout << "Temps total des colonnes analysées : " << total_all << " ms\n";
     }
 
     MPI_Type_free(&MPI_ANT);

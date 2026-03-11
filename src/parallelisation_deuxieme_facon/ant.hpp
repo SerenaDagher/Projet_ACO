@@ -8,7 +8,7 @@ struct AntMPI
 {
     int x;
     int y_global;
-    int state;          // 0 = unloaded, 1 = loaded
+    int state;
     std::uint64_t seed;
 };
 
