@@ -39,20 +39,12 @@ struct AntColony
     {
         m_eps = eps;
     }
-};
 
-/**
- * @brief Fait avancer une fourmi de la colonie vectorisée
- * @details La fourmi d'indice idx est mise à jour à partir des tableaux
- *          x, y, states et seeds. Les cellules visitées sont enregistrées
- *          dans visited_positions afin de reporter les marquages de phéromones
- *          après la phase parallèle.
- */
-void advance_ant_collect(std::size_t idx,
-                         AntColony& colony,
+    void advance(std::size_t idx,
                          const pheronome& phen,
                          const fractal_land& land,
                          const position_t& pos_food,
                          const position_t& pos_nest,
                          std::size_t& cpteur_food,
                          std::vector<position_t>& visited_positions);
+};

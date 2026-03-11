@@ -50,14 +50,13 @@ void advance_time_openmp(const fractal_land& land,
 #endif
         auto& visited = visited_by_thread[tid];
         visited.clear();
-        visited.reserve(1024);
+        visited.reserve(5000 / nthreads +1);
 
 #ifdef _OPENMP
 #pragma omp for schedule(static)
 #endif
         for (std::size_t i = 0; i < ants.size(); ++i) {
-            advance_ant_collect(i, ants, phen, land, pos_food, pos_nest,
-                                delta_food, visited);
+            ants.advance(i, phen, land, pos_food, pos_nest, delta_food, visited);
         }
     }
 
