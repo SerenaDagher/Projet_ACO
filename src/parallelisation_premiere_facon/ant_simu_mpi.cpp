@@ -37,18 +37,6 @@ static void split_range(int n, int rank, int size, int& begin, int& end)
     end   = begin + base + (rank < rem ? 1 : 0);
 }
 
-static double mean(double s, std::size_t n)
-{
-    return (n == 0) ? 0.0 : s / static_cast<double>(n);
-}
-
-static double stddev(double s, double s2, std::size_t n)
-{
-    if (n == 0) return 0.0;
-    double m = s / static_cast<double>(n);
-    return std::sqrt(s2 / static_cast<double>(n) - m * m);
-}
-
 void advance_time_mpi(const fractal_land& land,
                       pheronome& phen,
                       const position_t& pos_nest,
@@ -62,10 +50,7 @@ void advance_time_mpi(const fractal_land& land,
                       double& t_update)
 {
     using clock = std::chrono::high_resolution_clock;
-
-    // ============================================================
-    // 1) Déplacement local des fourmis
-    // ============================================================
+    
     auto ta1 = clock::now();
 
     std::vector<position_t> visited_positions;
@@ -84,10 +69,7 @@ void advance_time_mpi(const fractal_land& land,
 
     auto ta2 = clock::now();
     double local_t_ants = std::chrono::duration<double, std::milli>(ta2 - ta1).count();
-
-    // ============================================================
-    // 2) Synchronisation MPI : max des phéromones + somme nourriture
-    // ============================================================
+    
     auto ts1 = clock::now();
 
     std::vector<double> reduced_buffer(phen.raw_buffer_count(), 0.0);
@@ -103,26 +85,23 @@ void advance_time_mpi(const fractal_land& land,
 
     std::copy(reduced_buffer.begin(), reduced_buffer.end(), phen.raw_buffer_data());
 
-    unsigned long long local_food_ull  = static_cast<unsigned long long>(local_food_delta);
-    unsigned long long global_food_ull = 0ULL;
+    unsigned int local_food  = static_cast<unsigned int>(local_food_delta);
+    unsigned int global_food = 0;
 
     MPI_Allreduce(
-        &local_food_ull,
-        &global_food_ull,
+        &local_food,
+        &global_food,
         1,
-        MPI_UNSIGNED_LONG_LONG,
+        MPI_UNSIGNED_INT,
         MPI_SUM,
         MPI_COMM_WORLD
     );
 
-    global_food_quantity += static_cast<std::size_t>(global_food_ull);
+    global_food_quantity += static_cast<std::size_t>(global_food);
 
     auto ts2 = clock::now();
     double local_t_sync = std::chrono::duration<double, std::milli>(ts2 - ts1).count();
-
-    // ============================================================
-    // 3) Évaporation parallèle par blocs de lignes
-    // ============================================================
+    
     auto te1 = clock::now();
 
     int row_begin = 0, row_end = 0;
