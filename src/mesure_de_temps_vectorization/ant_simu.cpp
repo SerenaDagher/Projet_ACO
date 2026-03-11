@@ -38,7 +38,7 @@ void advance_time_vectorized(const fractal_land& land,
 
     auto t1 = clock::now();
     for (std::size_t i = 0; i < ants.size(); ++i) {
-        advance_ant(i, ants, phen, land, pos_food, pos_nest, cpteur);
+        ants.advance_ant(i, phen, land, pos_food, pos_nest, cpteur);
     }
     auto t2 = clock::now();
 

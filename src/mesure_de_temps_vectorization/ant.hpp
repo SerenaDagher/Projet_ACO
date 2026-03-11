@@ -6,33 +6,6 @@
 #include "fractal_land.hpp"
 #include "pheronome.hpp"
 
-class ant
-{
-public:
-    ant(position_t pos = {0,0}, std::size_t seed = 0)
-        : m_position(pos), m_seed(seed), m_loaded(false) {}
-
-    inline position_t get_position() const { return m_position; }
-    inline bool is_loaded() const { return m_loaded; }
-    inline void set_loaded() { m_loaded = true; }
-    inline void unset_loaded() { m_loaded = false; }
-
-    static inline void set_exploration_coef(double eps) { m_eps = eps; }
-
-    void advance(pheronome& phen,
-                 const fractal_land& land,
-                 const position_t& pos_food,
-                 const position_t& pos_nest,
-                 std::size_t& cpteur_food);
-
-private:
-    position_t   m_position;
-    std::size_t  m_seed;
-    bool         m_loaded;
-
-    static double m_eps;
-};
-
 // Représentation vectorisée des fourmis
 
 struct AntColony
@@ -66,13 +39,11 @@ struct AntColony
     {
         m_eps = eps;
     }
-};
 
-// Avance une seule fourmi vectorisée d’indice idx
-void advance_ant(std::size_t idx,
-                 AntColony& colony,
-                 pheronome& phen,
-                 const fractal_land& land,
-                 const position_t& pos_food,
-                 const position_t& pos_nest,
-                 std::size_t& cpteur_food);
+    void advance_ant(std::size_t idx,
+                    pheronome& phen,
+                    const fractal_land& land,
+                    const position_t& pos_food,
+                    const position_t& pos_nest,
+                    std::size_t& cpteur_food);
+};
