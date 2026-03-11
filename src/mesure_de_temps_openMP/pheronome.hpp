@@ -125,5 +125,4 @@ private:
     position_t m_pos_nest, m_pos_food;
 };
 
-
 #endif

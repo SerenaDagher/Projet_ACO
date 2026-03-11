@@ -1,59 +1,25 @@
-#ifndef _ANT_HPP_
-#define _ANT_HPP_
+#pragma once
 
-#include <utility>
 #include <vector>
-#include "pheronome.hpp"
-#include "fractal_land.hpp"
+#include <cstddef>
 #include "basic_types.hpp"
+#include "fractal_land.hpp"
+#include "pheronome.hpp"
 
-class ant
-{
-public:
-    enum state { unloaded = 0, loaded = 1 };
-
-    ant(const position_t& pos, std::size_t seed)
-        : m_seed(seed), m_state(unloaded), m_position(pos)
-    {}
-
-    ant(const ant& a) = default;
-    ant(ant&& a) = default;
-    ~ant() = default;
-
-    void set_loaded() { m_state = loaded; }
-    void unset_loaded() { m_state = unloaded; }
-
-    bool is_loaded() const { return m_state == loaded; }
-    const position_t& get_position() const { return m_position; }
-    static void set_exploration_coef(double eps) { m_eps = eps; }
-
-    void advance(pheronome& phen, const fractal_land& land,
-                 const position_t& pos_food, const position_t& pos_nest,
-                 std::size_t& cpteur_food);
-
-private:
-    static double m_eps;
-    std::size_t m_seed;
-    state m_state;
-    position_t m_position;
-};
-
-// ============================================================
-// Version vectorisée : Structure of Arrays
-// ============================================================
+// Représentation vectorisée des fourmis
 
 struct AntColony
 {
     std::vector<int> x;
     std::vector<int> y;
-    std::vector<int> states;              // 0 = unloaded, 1 = loaded
+    std::vector<int> states;       
     std::vector<std::size_t> seeds;
 
     static double m_eps;
 
-    std::size_t size() const { return x.size(); }
+    inline std::size_t size() const { return x.size(); }
 
-    void reserve(std::size_t n)
+    inline void reserve(std::size_t n)
     {
         x.reserve(n);
         y.reserve(n);
@@ -61,7 +27,7 @@ struct AntColony
         seeds.reserve(n);
     }
 
-    void push_back(const position_t& pos, std::size_t seed, int state = 0)
+    inline void push_back(position_t pos, std::size_t seed, int state = 0)
     {
         x.push_back(pos.x);
         y.push_back(pos.y);
@@ -69,14 +35,18 @@ struct AntColony
         seeds.push_back(seed);
     }
 
-    static void set_exploration_coef(double eps) { m_eps = eps; }
+    static inline void set_exploration_coef(double eps)
+    {
+        m_eps = eps;
+    }
 };
 
 /**
- * Version OpenMP-safe :
- * - la fourmi avance normalement
- * - les cellules visitées sont stockées dans visited_positions
- * - aucun marquage direct n'est fait dans pheronome ici
+ * @brief Fait avancer une fourmi de la colonie vectorisée
+ * @details La fourmi d'indice idx est mise à jour à partir des tableaux
+ *          x, y, states et seeds. Les cellules visitées sont enregistrées
+ *          dans visited_positions afin de reporter les marquages de phéromones
+ *          après la phase parallèle.
  */
 void advance_ant_collect(std::size_t idx,
                          AntColony& colony,
@@ -86,7 +56,3 @@ void advance_ant_collect(std::size_t idx,
                          const position_t& pos_nest,
                          std::size_t& cpteur_food,
                          std::vector<position_t>& visited_positions);
-
-#endif
-
-
