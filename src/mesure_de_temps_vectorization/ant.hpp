@@ -33,16 +33,14 @@ private:
     static double m_eps;
 };
 
-// ============================================================
-// Représentation vectorisée des fourmis (Structure of Arrays)
-// ============================================================
+// Représentation vectorisée des fourmis
 
 struct AntColony
 {
     std::vector<int> x;
     std::vector<int> y;
-    std::vector<int> states;        // 0 = non chargée, 1 = chargée
-    std::vector<std::size_t> seeds; // graine aléatoire par fourmi
+    std::vector<int> states;       
+    std::vector<std::size_t> seeds; 
 
     static double m_eps;
 
