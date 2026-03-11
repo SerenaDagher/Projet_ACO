@@ -5,6 +5,7 @@ import numpy as np
 # Colonnes de temps prioritaires si elles existent
 PREFERRED_TIME_COLUMNS = [
     "temps_fourmis_ms",
+    "temps_sync_ms",
     "temps_evap_ms",
     "temps_update_ms",
 ]
@@ -12,28 +13,32 @@ PREFERRED_TIME_COLUMNS = [
 def load_table():
     """
     Cherche automatiquement un fichier de résultats dans le dossier courant.
-    Priorité:
-      1) stats_fourmis.csv
-      2) stats_fourmis.xlsx
-      3) n'importe quel .csv
-      4) n'importe quel .xlsx
+    Priorité :
+      1) stats_fourmis_mpi.xlsx
+      2) stats_fourmis_mpi.csv
+      3) stats_fourmis.xlsx
+      4) stats_fourmis.csv
+      5) n'importe quel .xlsx
+      6) n'importe quel .csv
     """
     candidates = [
-        Path("stats_fourmis.csv"),
+        Path("stats_fourmis_mpi.xlsx"),
+        Path("stats_fourmis_mpi.csv"),
         Path("stats_fourmis.xlsx"),
+        Path("stats_fourmis.csv"),
     ]
 
     for p in candidates:
         if p.exists():
             return read_file(p)
 
-    csv_files = sorted(Path(".").glob("*.csv"))
-    if csv_files:
-        return read_file(csv_files[0])
-
     xlsx_files = sorted(Path(".").glob("*.xlsx"))
     if xlsx_files:
         return read_file(xlsx_files[0])
+
+    csv_files = sorted(Path(".").glob("*.csv"))
+    if csv_files:
+        return read_file(csv_files[0])
 
     raise FileNotFoundError(
         "Aucun fichier .csv ou .xlsx trouvé dans le dossier courant."
@@ -55,14 +60,15 @@ def find_numeric_time_columns(df: pd.DataFrame):
     """
     Retourne les colonnes à analyser :
     - d'abord les colonnes préférées si elles existent
-    - sinon toutes les colonnes numériques sauf 'iteration'
+    - sinon toutes les colonnes numériques sauf iteration/it/food_quantity
     """
     preferred = [c for c in PREFERRED_TIME_COLUMNS if c in df.columns]
     if preferred:
         return preferred
 
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    numeric_cols = [c for c in numeric_cols if c.lower() not in ("iteration", "it")]
+    excluded = {"iteration", "it", "food_quantity"}
+    numeric_cols = [c for c in numeric_cols if c.lower() not in excluded]
     return numeric_cols
 
 def main():
