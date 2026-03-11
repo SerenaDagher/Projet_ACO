@@ -74,7 +74,7 @@ void advance_time_mpi(const fractal_land& land,
     std::size_t local_food_delta = 0;
 
     for (std::size_t i = 0; i < local_ants.size(); ++i) {
-        advance_ant_collect(i, local_ants, phen, land, pos_food, pos_nest,
+        local_ants.advance(i, phen, land, pos_food, pos_nest,
                             local_food_delta, visited_positions);
     }
 
