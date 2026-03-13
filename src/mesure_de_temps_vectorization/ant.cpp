@@ -18,7 +18,7 @@ void AntColony::advance_ant(std::size_t idx,
     double consumed_time = 0.;
 
     while (consumed_time < 1.) {
-        int        ind_pher    = states[idx]; // 0 ou 1
+        int        ind_pher    = states[idx]; 
         double     choix       = ant_choice();
         position_t old_pos_ant = { x[idx], y[idx] };
         position_t new_pos_ant = old_pos_ant;
@@ -62,7 +62,7 @@ void AntColony::advance_ant(std::size_t idx,
             }
             states[idx] = 0;
         }
-
+     
         if (new_pos_ant == pos_food) {
             states[idx] = 1;
         }
