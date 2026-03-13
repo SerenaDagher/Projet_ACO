@@ -30,7 +30,7 @@ void AntColony::advance_ant(std::size_t idx,
             phen(new_pos_ant.x, new_pos_ant.y + 1)[ind_pher]
         });
 
-        if ((choix > AntColony::m_eps) || (max_phen <= 0.)) {
+        if ((choix > m_eps) || (max_phen <= 0.)) {
             do {
                 new_pos_ant = old_pos_ant;
                 int d = dir_choice();

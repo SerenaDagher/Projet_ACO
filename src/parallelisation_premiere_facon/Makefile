@@ -1,8 +1,8 @@
-MPICXX = mpicxx
+MPICXX = mpic++ -fopenmp
 
-MPI_CPPFLAGS = -I/opt/homebrew/include -D_THREAD_SAFE
+MPI_CPPFLAGS = 
 MPI_CXXFLAGS = -std=c++17 -O3 -march=native -Wall
-MPI_LIBS = -L/opt/homebrew/lib -lSDL2
+MPI_LIBS = -lmingw32 -lSDL2main -lSDL2
 
 TARGET = ant_simu_mpi.exe
 

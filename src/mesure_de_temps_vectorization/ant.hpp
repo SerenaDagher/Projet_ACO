@@ -13,7 +13,7 @@ struct AntColony
     std::vector<int> x;
     std::vector<int> y;
     std::vector<int> states;       
-    std::vector<std::size_t> seeds; 
+    std::vector<std::size_t> seeds;
 
     static double m_eps;
 

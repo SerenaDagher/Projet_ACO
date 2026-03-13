@@ -50,7 +50,7 @@ void advance_time_openmp(const fractal_land& land,
 #endif
         auto& visited = visited_by_thread[tid];
         visited.clear();
-        visited.reserve(5000 / nthreads +1);
+        visited.reserve(2 * 5000 / nthreads);
 
 #ifdef _OPENMP
 #pragma omp for schedule(static)
